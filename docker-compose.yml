@@ -1,0 +1,41 @@
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-localrootpass}
+      MYSQL_DATABASE: campuspulse
+      MYSQL_USER: campus
+      MYSQL_PASSWORD: ${DB_PASSWORD:-campuspass}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./backend/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_USER: campus
+      DB_PASSWORD: ${DB_PASSWORD:-campuspass}
+      DB_NAME: campuspulse
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+      CORS_ORIGIN: http://localhost:8080
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@campuspulse.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+    depends_on:
+      db:
+        condition: service_healthy
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+volumes:
+  mysql_data:
